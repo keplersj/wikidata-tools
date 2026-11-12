@@ -1,5 +1,5 @@
 import { cmp, type Key, type SourceEntry } from "@wdt/engine";
-import type { FetchLike } from "../wikidata/client.js";
+import { fetchWithRetry, type FetchLike } from "../wikidata/client.js";
 
 export const NPM_REGISTRY = "https://registry.npmjs.org";
 
@@ -85,9 +85,10 @@ export async function fetchPackument(
   fetchFn: FetchLike,
   name: string,
   base = NPM_REGISTRY,
+  retry: Parameters<typeof fetchWithRetry>[3] = {},
 ): Promise<Packument | null> {
   // No custom headers: npm's CORS preflight rejects them.
-  const res = await fetchFn(packumentUrl(name, base));
+  const res = await fetchWithRetry(fetchFn, packumentUrl(name, base), undefined, retry);
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`npm registry ${name}: HTTP ${res.status}`);
   return (await res.json()) as Packument;

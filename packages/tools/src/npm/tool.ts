@@ -23,7 +23,7 @@ export type NpmToolInput = {
 };
 
 export async function runNpmTool(
-  deps: { client: WikidataClient; fetchNpm: FetchLike },
+  deps: { client: WikidataClient; fetchNpm: FetchLike; retry?: Parameters<typeof fetchPackument>[3] },
   input: NpmToolInput,
 ): Promise<ToolRun> {
   const filter = input.versions ?? DEFAULT_VERSION_FILTER;
@@ -47,8 +47,14 @@ export async function runNpmTool(
   let done = 0;
   onProgress?.({ stage: "Fetching packages from the npm registry", done, total: sorted.length });
   const fetched = await pool(sorted, input.concurrency ?? 6, async (name) => {
-    const packument = await fetchPackument(deps.fetchNpm, name);
-    if (!packument) notes.push(`${name}: not found on the npm registry, skipped`);
+    let packument: Awaited<ReturnType<typeof fetchPackument>> = null;
+    try {
+      packument = await fetchPackument(deps.fetchNpm, name, undefined, deps.retry);
+      if (!packument) notes.push(`${name}: not found on the npm registry, skipped`);
+    } catch (err) {
+      // One bad package must not sink a batch of thousands; it is reported and picked up by the next run.
+      notes.push(`${name}: could not be fetched from npm (${err instanceof Error ? err.message : String(err)}), skipped`);
+    }
     onProgress?.({ stage: "Fetching packages from the npm registry", done: ++done, total: sorted.length });
     return packument ? packumentToSource(packument, name, filter) : null;
   });

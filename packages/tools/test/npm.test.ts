@@ -118,3 +118,17 @@ describe("npm tool progress", () => {
     expect(stages).toContain("Looking up existing items on Wikidata");
   });
 });
+
+describe("npm tool resilience", () => {
+  it("skips a package whose fetch fails and still builds the rest", async () => {
+    const replay = replayFetch(dir, []);
+    const fetchNpm: typeof replay = (url, init) =>
+      url.includes("ghost-pkg") ? Promise.reject(new TypeError("Failed to fetch")) : replay(url, init);
+    const r = await runNpmTool(
+      { client: createWikidataClient(replay), fetchNpm, retry: { sleep: async () => {} } },
+      { ...input, names: [...input.names, "ghost-pkg"] },
+    );
+    expect(r.notes).toEqual([expect.stringMatching(/^ghost-pkg: could not be fetched from npm \(Failed to fetch\), skipped$/)]);
+    expect(r.text).toBe((await run()).text);
+  });
+});
