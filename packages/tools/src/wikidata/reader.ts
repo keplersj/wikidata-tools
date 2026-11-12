@@ -96,9 +96,13 @@ export function parseEntity(entity: Record<string, unknown>): ItemState | null {
   return { qid: id, claims };
 }
 
-export async function loadStates(client: WikidataClient, qids: string[]): Promise<Map<string, ItemState>> {
+export async function loadStates(
+  client: WikidataClient,
+  qids: string[],
+  onBatch?: (done: number, total: number) => void,
+): Promise<Map<string, ItemState>> {
   const out = new Map<string, ItemState>();
-  for (const entity of await client.getEntities(qids)) {
+  for (const entity of await client.getEntities(qids, onBatch)) {
     const state = parseEntity(entity);
     if (state) out.set(state.qid, state);
   }
@@ -135,8 +139,10 @@ export async function readCurrent(client: WikidataClient, keys: Key[], onProgres
       hits.push({ id: keyId({ property, value: row.v }), qid: row.qid });
     }
   }
-  onProgress?.({ stage: "Loading item data from Wikidata" });
-  const states = await loadStates(client, hits.map((h) => h.qid));
+  const stage = "Loading item data from Wikidata";
+  const qids = hits.map((h) => h.qid);
+  onProgress?.({ stage, done: 0, total: new Set(qids).size });
+  const states = await loadStates(client, qids, (done, total) => onProgress?.({ stage, done, total }));
   const out: CurrentState = {};
   const unloadable = new Set<string>();
   for (const h of hits) {
@@ -153,7 +159,7 @@ export async function readCurrent(client: WikidataClient, keys: Key[], onProgres
 }
 
 /** Resolves (identifier property, raw value) pairs to QIDs, batched with SPARQL VALUES. */
-export async function readLookup(client: WikidataClient, pairs: Resolution[]): Promise<Lookup> {
+export async function readLookup(client: WikidataClient, pairs: Resolution[], onProgress?: OnProgress): Promise<Lookup> {
   const byVia = new Map<string, string[]>();
   for (const p of pairs) {
     const list = byVia.get(p.via) ?? [];
@@ -161,8 +167,16 @@ export async function readLookup(client: WikidataClient, pairs: Resolution[]): P
     byVia.set(p.via, list);
   }
   const rows: { via: string; raw: string; qid: string }[] = [];
+  const stage = "Looking up referenced items on Wikidata";
+  const total = [...byVia.values()].reduce((n, v) => n + new Set(v).size, 0);
+  let done = 0;
+  onProgress?.({ stage, done, total });
   for (const [via, raws] of [...byVia].sort(([a], [b]) => cmpId(a, b))) {
-    for (const r of await itemsByValues(client, via, raws)) rows.push({ via, raw: r.v, qid: r.qid });
+    const found = await itemsByValues(client, via, raws, (n) => {
+      done += n;
+      onProgress?.({ stage, done, total });
+    });
+    for (const r of found) rows.push({ via, raw: r.v, qid: r.qid });
   }
   return buildLookup(rows);
 }
@@ -230,9 +244,12 @@ export async function allValuesWithPrefix(
 export async function verifyLookup(
   client: WikidataClient,
   lookup: Lookup,
+  onProgress?: OnProgress,
 ): Promise<{ lookup: Lookup; dropped: string[] }> {
   const qids = [...new Set([...lookup.values()].flat())].sort(cmpId);
-  const alive = await loadStates(client, qids);
+  const stage = "Checking that referenced items still exist";
+  onProgress?.({ stage, done: 0, total: qids.length });
+  const alive = await loadStates(client, qids, (done, total) => onProgress?.({ stage, done, total }));
   const verified: Lookup = new Map();
   for (const [id, list] of lookup) {
     const kept = list.filter((q) => alive.has(q));
