@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   checkCoverage,
   checkSnapshot,
+  fetchArticles,
   parseFandomConfig,
   runFandomCategoryMap,
   runFandomCheck,
@@ -22,16 +23,18 @@ const wd = read("wikidata.json") as {
   items: Record<string, string>;
   entities: Record<string, Record<string, unknown>>;
 };
-const articles = [...(page1.items as FandomArticle[]), ...(page2.items as FandomArticle[])];
+const pagesOf = (b: Record<string, unknown>) => (b.query as { allpages: FandomArticle[] }).allpages;
+const articles = [...pagesOf(page1), ...pagesOf(page2)];
 
-/** Fake Fandom API serving the synthetic fixtures. */
+/** Fake api.php serving the synthetic fixtures; records the URLs asked for. */
+const asked: string[] = [];
 const fandomFetch: FetchLike = async (url) => {
+  asked.push(url);
   const u = new URL(url);
-  const category = u.searchParams.get("category");
-  const offset = u.searchParams.get("offset");
-  const body = category === "Droids" ? read("category-droids.json")
-    : category === "Characters" ? read("category-characters.json")
-    : offset ? page2 : page1;
+  const title = u.searchParams.get("cmtitle");
+  const body = title === "Category:Droids" ? read("category-droids.json")
+    : title === "Category:Characters" ? read("category-characters.json")
+    : u.searchParams.get("apcontinue") ? page2 : page1;
   return { ok: true, status: 200, json: async () => body };
 };
 
@@ -61,14 +64,56 @@ function legacyCheck(wiki: string, list: FandomArticle[], values: string[]) {
 }
 
 describe("slugOf", () => {
-  it("uses the URL slug, not the title", () => {
-    expect(slugOf({ url: "/wiki/Anakin_Skywalker" })).toBe("Anakin_Skywalker");
-    expect(slugOf({ url: "/wiki/R2-D2" })).toBe("R2-D2");
+  it("turns titles into the underscored, decoded slugs Wikidata stores", () => {
+    expect(slugOf({ title: "Anakin Skywalker" })).toBe("Anakin_Skywalker");
+    expect(slugOf({ title: "R2-D2" })).toBe("R2-D2");
+    // Real P6262 values seen on Wikidata, 2026-11-11: decoded, not percent-encoded.
+    expect(slugOf({ title: "Dennis Brännvall" })).toBe("Dennis_Brännvall");
+    expect(slugOf({ title: "Katy O'Brian" })).toBe("Katy_O'Brian");
+    expect(slugOf({ title: "Chewbacca/Legends" })).toBe("Chewbacca/Legends");
+    expect(slugOf({ title: " Padme Amidala " })).toBe("Padme_Amidala");
+  });
+});
+
+describe("fetchArticles (MediaWiki api.php)", () => {
+  it("parses a real recorded allpages response", async () => {
+    const real = read("real-allpages-sample.json") as { query: { allpages: FandomArticle[] } };
+    expect(real.query.allpages[0]).toMatchObject({ ns: 0 });
+    expect(real.query.allpages.every((a) => typeof a.title === "string")).toBe(true);
+  });
+
+  it("follows `continue` and asks for non-redirect main-namespace pages with origin=*", async () => {
+    asked.length = 0;
+    const list = await fetchArticles(fandomFetch, "examplewiki");
+    expect(list.map((a) => a.title)).toEqual(["Anakin Skywalker", "C-3PO", "Padme Amidala", "R2-D2", "Tatooine"]);
+    expect(asked).toHaveLength(2);
+    const first = new URL(asked[0] as string);
+    expect(first.origin + first.pathname).toBe("https://examplewiki.fandom.com/api.php");
+    expect(Object.fromEntries(first.searchParams)).toMatchObject({ list: "allpages", apnamespace: "0", apfilterredir: "nonredirects", origin: "*", format: "json" });
+    expect(new URL(asked[1] as string).searchParams.get("apcontinue")).toBe("Padme_Amidala");
+    expect(new URL(asked[1] as string).searchParams.get("continue")).toBe("-||");
+  });
+
+  it("lists a category, with or without the Category: prefix", async () => {
+    for (const name of ["Droids", "Category:Droids"]) {
+      asked.length = 0;
+      expect((await fetchArticles(fandomFetch, "examplewiki", { category: name })).map((a) => a.title)).toEqual(["C-3PO", "R2-D2"]);
+      expect(new URL(asked[0] as string).searchParams.get("cmtitle")).toBe("Category:Droids");
+    }
+  });
+
+  it("surfaces API errors and HTTP failures, and rejects odd wiki names", async () => {
+    const err: FetchLike = async () => ({ ok: true, status: 200, json: async () => ({ error: { code: "badtitle", info: "nope" } }) });
+    await expect(fetchArticles(err, "examplewiki")).rejects.toThrow(/badtitle: nope/);
+    const bad: FetchLike = async () => ({ ok: false, status: 403, json: async () => ({}) });
+    await expect(fetchArticles(bad, "examplewiki")).rejects.toThrow(/403/);
+    await expect(fetchArticles(fandomFetch, "evil.com/x")).rejects.toThrow(/wiki name/);
   });
 });
 
 describe("Fandom check", () => {
   it("legacy (title-based) numbers on the fixture", () => {
+    expect(legacyCheck.name).toBe("legacyCheck");
     // Multi-word titles never match their underscored slugs, so only R2-D2 counted.
     expect(legacyCheck("examplewiki", articles, wd.values)).toEqual({ total: 5, linked: 1, percent: 20 });
   });
@@ -81,8 +126,8 @@ describe("Fandom check", () => {
 
   it("agrees with the legacy check when every title equals its slug", () => {
     const simple: FandomArticle[] = [
-      { id: 1, title: "R2-D2", url: "/wiki/R2-D2", ns: 0 },
-      { id: 2, title: "Tatooine", url: "/wiki/Tatooine", ns: 0 },
+      { title: "R2-D2", ns: 0 },
+      { title: "Tatooine", ns: 0 },
     ];
     expect(checkCoverage("examplewiki", simple, wd.values).linked).toBe(legacyCheck("examplewiki", simple, wd.values).linked);
   });

@@ -11,7 +11,7 @@ import {
   type ToolRun,
   type VersionFilter,
 } from "@wdt/tools";
-import { barHtml, batchFileName, coverageHtml, esc, fandomProxyBase, snapshotFileName } from "./format.js";
+import { barHtml, batchFileName, coverageHtml, esc, snapshotFileName } from "./format.js";
 
 const fetchFn: FetchLike = (url, init) => fetch(url, init);
 const client = createWikidataClient(fetchFn);
@@ -66,7 +66,7 @@ const tools: Tool[] = [
       ${dateField}`,
     async run(f, out) {
       const wiki = String(f.get("wiki")).trim();
-      showCheck(out, await runFandomCheck({ client, fetchFandom: fetchFn, base: fandomProxyBase }, wiki), String(f.get("runDate")));
+      showCheck(out, await runFandomCheck({ client, fetchFandom: fetchFn }, wiki), String(f.get("runDate")));
     },
   },
   {
@@ -83,7 +83,7 @@ const tools: Tool[] = [
       const config = raw
         ? parseFandomConfig(JSON.parse(raw))
         : parseFandomConfig({ wiki: String(f.get("wiki")).trim(), categories: [{ name: String(f.get("category")).trim() }] });
-      showRun(out, await runFandomCategoryMap({ client, fetchFandom: fetchFn, base: fandomProxyBase }, config, String(f.get("runDate"))));
+      showRun(out, await runFandomCategoryMap({ client, fetchFandom: fetchFn }, config, String(f.get("runDate"))));
     },
   },
 ];

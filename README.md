@@ -23,7 +23,7 @@ v1 tools: **npm packages**, **Fandom check**, **Fandom category map** (with per-
 ```
 packages/engine   pure: types, normalizers, diff, emitter, resolver logic, mapping applier, coverage
 packages/tools    Wikidata client + reader, source adapters and mappings (npm, Fandom), shared pipeline
-apps/web          Vite UI + Cloudflare Worker (static assets + one allow-listed proxy route)
+apps/web          Vite UI, served as Cloudflare Workers static assets (no Worker code)
 ```
 
 ```
@@ -76,7 +76,7 @@ the mapping's `ignore` to silence it.
 3. Add a tab in `apps/web/src/main.ts` (`tools` array: a form, and a `run` that calls `showRun`).
 4. Tests: a fixture snapshot, plus an idempotency check (apply the batch, plan again, expect empty). Never call live
    APIs in tests.
-5. If the source blocks browser requests (CORS), add an allow-listed route in `apps/web/worker/proxy.ts`; never an open proxy.
+5. If a source blocks browser requests (no CORS headers), add one allow-listed Worker route for it; never an open proxy. None of the v1 sources needs one.
 
 ## npm tool options
 

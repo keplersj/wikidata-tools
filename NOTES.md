@@ -13,9 +13,9 @@ Everything here was my call, not the owner's. Flip any of it freely.
 - **Description on new npm items:** the registry `description` goes into `Den` on `CREATE`. Language is always `en`.
 - **Fandom references:** the brief only specified npm references. Fandom statements get S854 = the article URL
   (`https://<wiki>.fandom.com/wiki/<slug>`) and S813 = run date. The old category-map script attached none.
-- **Fandom P6262 values** are `wiki:` + the URL slug *exactly as the API returns it* (no percent-decoding). Whether
-  Wikidata stores `Padm%C3%A9_Amidala` or `Padmé_Amidala` is unverified (no live Fandom access); change `slugOf` in
-  `packages/tools/src/fandom/source.ts` if it is the latter.
+- **Fandom P6262 values** are `wiki:` + the page title with spaces as underscores (decoded, not percent-encoded).
+  Checked against real Wikidata values on 2026-11-11 (`starwars:Dennis_Brännvall`, `starwars:Katy_O'Brian`,
+  `starwars:Chewbacca/Legends`).
 - **Class-mapping config** is a JSON file per wiki (`{ wiki, categories: [{ name, instanceOf? }] }`), pasted into the
   UI. No QIDs are shipped: none were invented.
 - **Dependencies (P1547)** resolve through P8262 only to items that already exist. A dependency whose own item is
@@ -52,21 +52,18 @@ recorded npm fixture used for the done-criterion has no such case.
 | `registry.npmjs.org` GET | OK, `access-control-allow-origin: *`. **Preflight (OPTIONS) returns 404**, so never send non-safelisted headers (e.g. `Api-User-Agent`) to npm. The code sends none. |
 | `query.wikidata.org/sparql` | OK; default response is XML, so we send `format=json` and an `Accept` header. Preflight allows `api-user-agent`. |
 | `www.wikidata.org/w/api.php` | OK with `origin=*` (`access-control-allow-origin: *`); preflight allows `api-user-agent`. Needs a descriptive UA: a bare curl got an HTML page. |
-| **Fandom `*.fandom.com/api/v1/Articles/List` — FAILED** | HTTP 403 with a Cloudflare "Just a moment…" challenge page, no CORS headers, both from curl and with the honest UA. So browsers can't call it directly. |
+| **Fandom `/api/v1/Articles/List` — FAILED** | HTTP 403, Cloudflare "Just a moment…" challenge (`cf-mitigated: challenge`), no CORS headers. Same result from curl with the default UA, with an honest UA, and with the old scripts' `got` UA, from this machine. I did not try to get around it. |
+| **Fandom `/api.php` (MediaWiki API) — OK** | HTTP 200 JSON, `access-control-allow-origin: *`, no challenge (with `origin=*` and an honest UA). **The Fandom tools use this instead**, so no proxy is needed and the Worker was removed. Only `allpages` was probed; `categorymembers` returned a valid empty result for `Category:Droids` on starwars (category probably doesn't exist), so category listing and `continue` paging against the live site are unverified. No custom headers are sent to Fandom (avoids a preflight whose answer I didn't check). |
 
-**Fandom proxy:** added one Worker route, `/api/proxy/fandom/<wiki>/api/v1/Articles/List` (GET only, one allow-listed
-path and parameter set, validated subdomain, no cookies, no redirects followed, 5-minute cache, JSON-only responses).
-**I could not verify that a Worker's requests get past Fandom's challenge either**; I stopped probing after a request
-to get around the challenge with a browser User-Agent was (rightly) blocked, and I did not retry. If the challenge
-also blocks the Worker, the Fandom tools will show a clear error ("Upstream answered HTTP 403 with text/html, not
-JSON") and need either a Fandom-side allowance or a different data path. Treat both Fandom tools as unproven live.
+**Worker/proxy:** an earlier version had one allow-listed Fandom proxy route. It was removed when the MediaWiki API
+turned out to answer CORS. The deployed site is now static assets only.
 
-**Synthetic Fandom fixtures:** because of the above, `packages/tools/fixtures/fandom/` is hand-written, labelled
-synthetic in its README and `_synthetic` fields. The npm and Wikidata fixtures are real recordings.
+**Fandom fixtures:** `packages/tools/fixtures/fandom/` has one real recorded `allpages` response
+(`real-allpages-sample.json`); the rest are hand-written in the same shape and labelled synthetic.
 
 ## Fandom check vs the old `fandom-check` numbers
 
-The old command compared article **titles** ("Anakin Skywalker") with stored values that are URL **slugs**
+The old command compared article **titles** ("Anakin Skywalker") with stored values that are **slugs**
 ("Anakin_Skywalker"), so any multi-word title was reported as unlinked. The new check compares slugs, as the brief
 asked. The test suite keeps a verbatim-behaviour copy of the old title-based check (`legacyCheck`) and asserts both
 results on the same fixture: legacy 1 of 5 linked (20%), slug-based 2 of 5 (40%). They agree exactly when every
@@ -80,7 +77,7 @@ is the intended fix, not a regression.
   package and needs a Node to bootstrap); the devcontainer file is written but untested.
 - **CI has never run.** `.github/workflows/ci.yml` is written (lint, typecheck, test, build) and its steps were run
   locally, but there is no remote yet, so there is no green CI badge to point to.
-- **Not deployed.** `apps/web/wrangler.toml` has the custom-domain route for `wikidata.keplersj.com`; no deploy, no
+- **Not deployed.** `apps/web/wrangler.toml` (static assets only) has the custom-domain route for `wikidata.keplersj.com`; no deploy, no
   DNS record. `npm run deploy -w @wdt/web` deliberately fails with a reminder.
 - QuickStatements was modelled (`packages/engine/src/qs-sim.ts`: exact property+value merge, otherwise add), not run
   against the real tool. The model follows the documented behaviour; real-world quirks may differ.

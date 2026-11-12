@@ -23,7 +23,6 @@
     "ci": "npm run lint && npm run typecheck && npm test && npm run build"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20261112.1",
     "@stryker-mutator/core": "^10.1.1",
     "@stryker-mutator/vitest-runner": "^10.1.1",
     "@types/node": "^26.6.6",

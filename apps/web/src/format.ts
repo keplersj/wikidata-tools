@@ -25,6 +25,3 @@ export function coverageHtml(c: Coverage): string {
 
 export const snapshotFileName = (s: Pick<Snapshot, "tool" | "date">): string => `snapshot-${s.tool}-${s.date}.json`;
 export const batchFileName = (tool: string, date: string): string => `quickstatements-${tool}-${date}.txt`;
-
-/** Fandom has no CORS headers, so the browser goes through the Worker's allow-listed proxy. */
-export const fandomProxyBase = (wiki: string): string => `/api/proxy/fandom/${encodeURIComponent(wiki)}`;
