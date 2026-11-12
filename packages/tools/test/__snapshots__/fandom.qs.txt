@@ -1,0 +1,10 @@
+CREATE
+LAST	Len	"C-3PO"
+LAST	P31	Q100	S813	+2026-11-11T00:00:00Z/11	S854	"https://examplewiki.fandom.com/wiki/C-3PO"
+LAST	P6262	"examplewiki:C-3PO"	S813	+2026-11-11T00:00:00Z/11	S854	"https://examplewiki.fandom.com/wiki/C-3PO"
+CREATE
+LAST	Len	"Padme Amidala"
+LAST	P31	Q101	S813	+2026-11-11T00:00:00Z/11	S854	"https://examplewiki.fandom.com/wiki/Padme_Amidala"
+LAST	P6262	"examplewiki:Padme_Amidala"	S813	+2026-11-11T00:00:00Z/11	S854	"https://examplewiki.fandom.com/wiki/Padme_Amidala"
+Q555	P31	Q100	S813	+2026-11-11T00:00:00Z/11	S854	"https://examplewiki.fandom.com/wiki/R2-D2"
+Q555	P31	Q101	S813	+2026-11-11T00:00:00Z/11	S854	"https://examplewiki.fandom.com/wiki/R2-D2"

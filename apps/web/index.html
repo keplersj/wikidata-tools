@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kepler's WikiData Tools</title>
+    <meta name="description" content="Read a source and Wikidata, get a QuickStatements batch of only what Wikidata is missing." />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Kepler's WikiData Tools</h1>
+      <p>
+        Each tool compares a source with Wikidata and gives you a
+        <a href="https://www.wikidata.org/wiki/Help:QuickStatements">QuickStatements</a> batch of only what is
+        missing. This site never edits Wikidata and has no sign-in: you review the batch, then run it yourself.
+      </p>
+    </header>
+    <nav id="tabs" role="tablist" aria-label="Tools"></nav>
+    <main id="tool"></main>
+    <footer>
+      <a href="https://github.com/keplersj/wikidata-tools">Source</a> · Requests to Wikidata and npm come
+      straight from your browser; Fandom goes through a small allow-listed proxy.
+    </footer>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

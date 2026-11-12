@@ -1,0 +1,9 @@
+{
+  "_synthetic": true,
+  "basepath": "https://examplewiki.fandom.com",
+  "offset": "Padme_Amidala",
+  "items": [
+    { "id": 1, "title": "Anakin Skywalker", "url": "/wiki/Anakin_Skywalker", "ns": 0 },
+    { "id": 2, "title": "C-3PO", "url": "/wiki/C-3PO", "ns": 0 }
+  ]
+}

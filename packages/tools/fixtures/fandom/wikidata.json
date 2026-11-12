@@ -1,0 +1,23 @@
+{
+  "_synthetic": true,
+  "values": ["examplewiki:Anakin_Skywalker", "examplewiki:Gone_Page", "examplewiki:R2-D2"],
+  "items": {
+    "examplewiki:Anakin_Skywalker": "Q500",
+    "examplewiki:R2-D2": "Q555"
+  },
+  "entities": {
+    "Q500": {
+      "id": "Q500",
+      "claims": {
+        "P6262": [{ "mainsnak": { "snaktype": "value", "datatype": "external-id", "datavalue": { "type": "string", "value": "examplewiki:Anakin_Skywalker" } } }],
+        "P31": [{ "mainsnak": { "snaktype": "value", "datatype": "wikibase-item", "datavalue": { "type": "wikibase-entityid", "value": { "id": "Q101" } } } }]
+      }
+    },
+    "Q555": {
+      "id": "Q555",
+      "claims": {
+        "P6262": [{ "mainsnak": { "snaktype": "value", "datatype": "external-id", "datavalue": { "type": "string", "value": "examplewiki:R2-D2" } } }]
+      }
+    }
+  }
+}

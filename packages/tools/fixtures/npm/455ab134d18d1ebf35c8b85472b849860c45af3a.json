@@ -1,0 +1,5 @@
+{
+ "url": "https://query.wikidata.org/sparql?query=SELECT+%3Fitem+%3Fv+WHERE+%7B+VALUES+%3Fv+%7B+%22is-number%22+%7D+%3Fitem+p%3AP8262%2Fps%3AP8262+%3Fv+.+%7D&format=json",
+ "status": 200,
+ "body": "{\n  \"head\" : {\n    \"vars\" : [ \"item\", \"v\" ]\n  },\n  \"results\" : {\n    \"bindings\" : [ {\n      \"v\" : {\n        \"type\" : \"literal\",\n        \"value\" : \"is-number\"\n      },\n      \"item\" : {\n        \"type\" : \"uri\",\n        \"value\" : \"http://www.wikidata.org/entity/Q95956488\"\n      }\n    } ]\n  }\n}"
+}

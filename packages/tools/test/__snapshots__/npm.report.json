@@ -1,0 +1,51 @@
+{
+  "report": {
+    "unresolved": [],
+    "skipped": [],
+    "unmappedFields": [
+      "author",
+      "contributors",
+      "keywords",
+      "maintainers"
+    ],
+    "coverage": {
+      "entries": 3,
+      "linked": 1,
+      "wanted": 53,
+      "wantedLinked": 20,
+      "presentLinked": 19,
+      "blocked": 0
+    }
+  },
+  "notes": [],
+  "snapshot": {
+    "date": "2026-11-11",
+    "tool": "npm",
+    "mappingVersion": "npm-1",
+    "coverage": {
+      "entries": 3,
+      "linked": 1,
+      "wanted": 53,
+      "wantedLinked": 20,
+      "presentLinked": 19,
+      "blocked": 0
+    },
+    "counts": {
+      "creates": 2,
+      "additions": 1,
+      "unresolved": 0,
+      "skipped": 0
+    },
+    "inputs": {
+      "names": [
+        "is-number",
+        "is-odd",
+        "left-pad"
+      ],
+      "fromWikidata": null,
+      "versions": {
+        "mode": "releases-only"
+      }
+    }
+  }
+}

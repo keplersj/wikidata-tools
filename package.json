@@ -1,0 +1,39 @@
+{
+  "name": "wikidata-tools",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Kepler's WikiData Tools: read a source and Wikidata, output a QuickStatements batch of only what is missing.",
+  "license": "MIT",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "mutate": "npm run mutate -w @wdt/engine",
+    "build": "npm run build -w @wdt/web",
+    "dev": "npm run dev -w @wdt/web",
+    "ci": "npm run lint && npm run typecheck && npm test && npm run build"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261112.1",
+    "@stryker-mutator/core": "^10.1.1",
+    "@stryker-mutator/vitest-runner": "^10.1.1",
+    "@types/node": "^26.6.6",
+    "eslint": "^10.14.0",
+    "fast-check": "^4.10.2",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.72.2",
+    "vite": "^8.3.8",
+    "vite-node": "^6.0.0",
+    "vitest": "^5.1.0",
+    "wrangler": "^4.160.1"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "_synthetic": true,
+  "basepath": "https://examplewiki.fandom.com",
+  "items": [
+    { "id": 3, "title": "Padme Amidala", "url": "/wiki/Padme_Amidala", "ns": 0 },
+    { "id": 4, "title": "R2-D2", "url": "/wiki/R2-D2", "ns": 0 },
+    { "id": 5, "title": "Tatooine", "url": "/wiki/Tatooine", "ns": 0 }
+  ]
+}

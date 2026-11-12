@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.wrangler/
+coverage/
+.stryker-tmp/
+reports/
+*.log
+.DS_Store
+# Local-environment helper (podman via distrobox); not part of the repo
+scripts/in-container.sh
