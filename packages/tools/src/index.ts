@@ -1,3 +1,4 @@
+export * from "./progress.js";
 export * from "./version.js";
 export * from "./pipeline.js";
 export * from "./wikidata/client.js";

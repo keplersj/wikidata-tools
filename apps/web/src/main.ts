@@ -8,6 +8,7 @@ import {
   checkSnapshot,
   type FandomCheck,
   type FetchLike,
+  type OnProgress,
   type ToolRun,
   type VersionFilter,
 } from "@wdt/tools";
@@ -17,7 +18,7 @@ const fetchFn: FetchLike = (url, init) => fetch(url, init);
 const client = createWikidataClient(fetchFn);
 const today = () => new Date().toISOString().slice(0, 10); // the app, not the engine, reads the clock
 
-type Tool = { id: string; label: string; form: () => string; run: (f: FormData, out: HTMLElement) => Promise<void> };
+type Tool = { id: string; label: string; form: () => string; run: (f: FormData, out: HTMLElement, onProgress: OnProgress) => Promise<void> };
 
 const dateField = `<label>Run date <small>(goes into the "retrieved" reference)</small>
   <input type="date" name="runDate" value="${today()}" required /></label>`;
@@ -44,7 +45,7 @@ const tools: Tool[] = [
           </select></label>
         <label>N <small>(for Latest N)</small><input type="number" name="n" value="10" min="1" /></label>
       </div>${dateField}`,
-    async run(f, out) {
+    async run(f, out, onProgress) {
       const mode = String(f.get("mode"));
       const versions: VersionFilter =
         mode === "all" ? { mode: "all" } : mode === "latest-n" ? { mode: "latest-n", n: Number(f.get("n")) } : { mode: "releases-only" };
@@ -55,7 +56,7 @@ const tools: Tool[] = [
         : undefined;
       const run = await runNpmTool(
         { client, fetchNpm: fetchFn },
-        { names: String(f.get("names")).split("\n"), versions, runDate: String(f.get("runDate")), ...(fromWikidata ? { fromWikidata } : {}) },
+        { names: String(f.get("names")).split("\n"), versions, runDate: String(f.get("runDate")), onProgress, ...(fromWikidata ? { fromWikidata } : {}) },
       );
       showRun(out, run);
     },
@@ -81,12 +82,12 @@ const tools: Tool[] = [
       <label>Or a class-mapping config <small>JSON: wiki + categories with optional instanceOf QIDs; overrides the two fields above</small>
         <textarea name="config" rows="6" placeholder='{ "wiki": "starwars", "categories": [ { "name": "Droids", "instanceOf": "Q…" } ] }'></textarea></label>
       ${dateField}`,
-    async run(f, out) {
+    async run(f, out, onProgress) {
       const raw = String(f.get("config")).trim();
       const config = raw
         ? parseFandomConfig(JSON.parse(raw))
         : parseFandomConfig({ wiki: String(f.get("wiki")).trim(), categories: [{ name: String(f.get("category")).trim() }] });
-      showRun(out, await runFandomCategoryMap({ client, fetchFandom: fetchFn }, config, String(f.get("runDate"))));
+      showRun(out, await runFandomCategoryMap({ client, fetchFandom: fetchFn, onProgress }, config, String(f.get("runDate"))));
     },
   },
 ];
@@ -155,8 +156,20 @@ function select(id: string) {
     e.preventDefault();
     const button = form.querySelector("button.primary") as HTMLButtonElement;
     button.disabled = true;
-    out.innerHTML = "<p>Working…</p>";
-    tool.run(new FormData(form), out)
+    out.innerHTML = `<div class="progress"><p id="progress-label">Working…</p><progress id="progress-bar" aria-labelledby="progress-label"></progress></div>`;
+    const label = out.querySelector("#progress-label") as HTMLElement;
+    const bar = out.querySelector("#progress-bar") as HTMLProgressElement;
+    const onProgress: OnProgress = ({ stage, done, total }) => {
+      const counted = done !== undefined && total !== undefined && total > 0;
+      label.textContent = counted ? `${stage}: ${done} of ${total}` : `${stage}…`;
+      if (counted) {
+        bar.max = total;
+        bar.value = done;
+      } else {
+        bar.removeAttribute("value"); // indeterminate
+      }
+    };
+    tool.run(new FormData(form), out, onProgress)
       .catch((err: unknown) => {
         out.innerHTML = `<div class="error" role="alert">${esc(err instanceof Error ? err.message : String(err))}</div>`;
       })

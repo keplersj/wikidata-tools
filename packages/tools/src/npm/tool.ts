@@ -1,4 +1,5 @@
 import { cmp, normalizeString, type SourceEntry } from "@wdt/engine";
+import type { OnProgress } from "../progress.js";
 import { pool, runPipeline, type ToolRun } from "../pipeline.js";
 import type { FetchLike, WikidataClient } from "../wikidata/client.js";
 import { listAllValues, listValues } from "../wikidata/reader.js";
@@ -18,6 +19,7 @@ export type NpmToolInput = {
   /** `YYYY-MM-DD`. An input, never read from a clock. */
   runDate: string;
   concurrency?: number;
+  onProgress?: OnProgress;
 };
 
 export async function runNpmTool(
@@ -26,17 +28,28 @@ export async function runNpmTool(
 ): Promise<ToolRun> {
   const filter = input.versions ?? DEFAULT_VERSION_FILTER;
   const names = new Set(input.names.map(normalizeString).filter((n) => n !== ""));
+  const { onProgress } = input;
   if (input.fromWikidata) {
     const from = input.fromWikidata;
-    const values = "all" in from ? await listAllValues(deps.client, "P8262", from) : await listValues(deps.client, "P8262", from);
+    onProgress?.({ stage: "Listing npm packages on Wikidata" });
+    const values =
+      "all" in from
+        ? await listAllValues(deps.client, "P8262", {
+            ...from,
+            onPage: (n) => onProgress?.({ stage: `Listing npm packages on Wikidata (${n} so far)` }),
+          })
+        : await listValues(deps.client, "P8262", from);
     for (const v of values) names.add(v);
   }
   const sorted = [...names].sort(cmp);
 
   const notes: string[] = [];
+  let done = 0;
+  onProgress?.({ stage: "Fetching packages from the npm registry", done, total: sorted.length });
   const fetched = await pool(sorted, input.concurrency ?? 6, async (name) => {
     const packument = await fetchPackument(deps.fetchNpm, name);
     if (!packument) notes.push(`${name}: not found on the npm registry, skipped`);
+    onProgress?.({ stage: "Fetching packages from the npm registry", done: ++done, total: sorted.length });
     return packument ? packumentToSource(packument, name, filter) : null;
   });
   const entries = fetched.filter((e): e is SourceEntry => e !== null);
@@ -48,6 +61,7 @@ export async function runNpmTool(
     entries,
     runDate: input.runDate,
     notes: notes.sort(cmp),
+    ...(onProgress ? { onProgress } : {}),
     inputs: { names: sorted, fromWikidata: input.fromWikidata ?? null, versions: filter },
   });
 }
