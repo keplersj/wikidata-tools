@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   chunk,
+  listAllValues,
   createWikidataClient,
   parseEntity,
   parseSnak,
@@ -155,5 +156,36 @@ describe("verifyLookup", () => {
     expect(out.get("P8262\0gone")).toBeUndefined();
     expect(out.get("P8262\0both")).toEqual(["Q1"]);
     expect(dropped).toEqual(["Q2"]);
+  });
+});
+
+describe("listAllValues", () => {
+  const fake = (all: string[]) => {
+    const queries: string[] = [];
+    const client = {
+      sparql: async (q: string) => {
+        queries.push(q);
+        const limit = Number(/LIMIT (\d+)/.exec(q)?.[1]);
+        const offset = Number(/OFFSET (\d+)/.exec(q)?.[1]);
+        return all.slice(offset, offset + limit).map((value) => ({ v: { type: "literal", value } }));
+      },
+    } as unknown as WikidataClient;
+    return { client, queries };
+  };
+  const names = Array.from({ length: 25 }, (_, i) => `pkg${String(i).padStart(2, "0")}`);
+
+  it("pages until a short page", async () => {
+    const { client, queries } = fake(names);
+    expect(await listAllValues(client, "P8262", { pageSize: 10 })).toEqual(names);
+    expect(queries).toHaveLength(3);
+  });
+  it("stops cleanly when the total is an exact multiple of the page size", async () => {
+    const { client, queries } = fake(names.slice(0, 20));
+    expect(await listAllValues(client, "P8262", { pageSize: 10 })).toEqual(names.slice(0, 20));
+    expect(queries).toHaveLength(3);
+  });
+  it("honours offset and max", async () => {
+    const { client } = fake(names);
+    expect(await listAllValues(client, "P8262", { pageSize: 4, offset: 3, max: 6 })).toEqual(names.slice(3, 9));
   });
 });

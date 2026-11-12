@@ -30,6 +30,7 @@ const tools: Tool[] = [
       <label>Package names <small>one per line; new ones get an item</small>
         <textarea name="names" rows="5" placeholder="left-pad&#10;@babel/core"></textarea></label>
       <label class="check"><input type="checkbox" name="fromWikidata" /> Also check packages that already have an npm package (P8262) on Wikidata</label>
+      <label class="check"><input type="checkbox" name="all" /> All of them, paged into one batch <small>(ignores "How many"; can take a while)</small></label>
       <div class="row">
         <label>How many <small>(sorted by name)</small><input type="number" name="limit" value="25" min="1" max="200" /></label>
         <label>Skip first<input type="number" name="offset" value="0" min="0" /></label>
@@ -48,7 +49,9 @@ const tools: Tool[] = [
       const versions: VersionFilter =
         mode === "all" ? { mode: "all" } : mode === "latest-n" ? { mode: "latest-n", n: Number(f.get("n")) } : { mode: "releases-only" };
       const fromWikidata = f.get("fromWikidata")
-        ? { limit: Number(f.get("limit")), offset: Number(f.get("offset")) }
+        ? f.get("all")
+          ? { all: true as const, offset: Number(f.get("offset")) }
+          : { limit: Number(f.get("limit")), offset: Number(f.get("offset")) }
         : undefined;
       const run = await runNpmTool(
         { client, fetchNpm: fetchFn },

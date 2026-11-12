@@ -164,6 +164,36 @@ export async function listValues(
   return (await client.sparql(query)).flatMap((b) => (b.v ? [b.v.value] : []));
 }
 
+/** Default page size for {@link listAllValues}. */
+export const DEFAULT_PAGE_SIZE = 1000;
+
+/**
+ * Every distinct value of an identifier property, fetched in sorted pages of `pageSize`
+ * until a short page comes back. Optional `offset` skips the first values; `max` caps the total.
+ */
+export async function listAllValues(
+  client: WikidataClient,
+  property: string,
+  opts: { pageSize?: number; offset?: number; max?: number; prefix?: string } = {},
+): Promise<string[]> {
+  const pageSize = Math.max(1, Math.trunc(opts.pageSize ?? DEFAULT_PAGE_SIZE));
+  const max = opts.max === undefined ? Infinity : Math.max(0, Math.trunc(opts.max));
+  const out: string[] = [];
+  let offset = Math.max(0, Math.trunc(opts.offset ?? 0));
+  while (out.length < max) {
+    const limit = Math.min(pageSize, max - out.length);
+    const page = await listValues(client, property, {
+      limit,
+      offset,
+      ...(opts.prefix === undefined ? {} : { prefix: opts.prefix }),
+    });
+    out.push(...page);
+    if (page.length < limit) break;
+    offset += page.length;
+  }
+  return out;
+}
+
 /** All values of an identifier property starting with `prefix` (no paging). One query. */
 export async function allValuesWithPrefix(
   client: WikidataClient,
