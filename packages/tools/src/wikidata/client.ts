@@ -12,7 +12,7 @@ export type WikidataClient = {
   /** Runs a SPARQL query and returns its bindings. */
   sparql(query: string): Promise<SparqlBinding[]>;
   /** Raw `wbgetentities` (claims only) for up to 50 ids per request, batched. */
-  getEntities(ids: string[]): Promise<Record<string, unknown>[]>;
+  getEntities(ids: string[], onBatch?: (done: number, total: number) => void): Promise<Record<string, unknown>[]>;
 };
 
 export const SPARQL_ENDPOINT = "https://query.wikidata.org/sparql";
@@ -69,9 +69,11 @@ export function createWikidataClient(fetchFn: FetchLike, retry: Parameters<typeo
       return body.results.bindings;
     },
 
-    async getEntities(ids) {
+    async getEntities(ids, onBatch) {
       const out: Record<string, unknown>[] = [];
-      for (const batch of chunk([...new Set(ids)].sort(), ENTITY_BATCH)) {
+      const unique = [...new Set(ids)].sort();
+      let done = 0;
+      for (const batch of chunk(unique, ENTITY_BATCH)) {
         const params = new URLSearchParams({
           action: "wbgetentities",
           format: "json",
@@ -86,6 +88,8 @@ export function createWikidataClient(fetchFn: FetchLike, retry: Parameters<typeo
           const entity = body.entities?.[id];
           if (entity) out.push(entity);
         }
+        done += batch.length;
+        onBatch?.(done, unique.length);
       }
       return out;
     },

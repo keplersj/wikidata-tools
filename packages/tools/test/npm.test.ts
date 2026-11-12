@@ -116,6 +116,8 @@ describe("npm tool progress", () => {
     const stages = events.map((e) => e.stage);
     expect(stages.at(-1)).toBe("Comparing and building the batch");
     expect(stages).toContain("Looking up existing items on Wikidata");
+    expect(stages).toContain("Looking up referenced items on Wikidata");
+    for (const e of events.filter((x) => x.total !== undefined)) expect(e.done).toBeLessThanOrEqual(e.total as number);
   });
 });
 

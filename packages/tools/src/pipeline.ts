@@ -51,7 +51,7 @@ export async function runPipeline(args: {
   const { onProgress } = args;
   onProgress?.({ stage: "Resolving references through Wikidata identifiers" });
   const mapped = args.entries.map((e) => applyMapping(mapping, e, { runDate }));
-  const { lookup, dropped } = await verifyLookup(client, await readLookup(client, collectUnresolved(mapped)));
+  const { lookup, dropped } = await verifyLookup(client, await readLookup(client, collectUnresolved(mapped), onProgress), onProgress);
   const wanted = resolveEntries(mapped, lookup);
   const { current, unloadable } = await readCurrent(client, wanted.map((e) => e.key), onProgress);
   onProgress?.({ stage: "Comparing and building the batch" });
