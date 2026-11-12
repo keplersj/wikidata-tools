@@ -134,7 +134,7 @@ describe("client", () => {
       calls.push(url);
       return { ok: false, status: 429, json: async () => ({}) };
     };
-    await expect(createWikidataClient(bad).sparql("SELECT 1")).rejects.toThrow(/429/);
+    await expect(createWikidataClient(bad, { sleep: async () => {} }).sparql("SELECT 1")).rejects.toThrow(/429/);
     expect(calls[0]).toContain("format=json");
   });
   it("chunk", () => expect(chunk([1, 2, 3], 2)).toEqual([[1, 2], [3]]));
@@ -187,5 +187,40 @@ describe("listAllValues", () => {
   it("honours offset and max", async () => {
     const { client } = fake(names);
     expect(await listAllValues(client, "P8262", { pageSize: 4, offset: 3, max: 6 })).toEqual(names.slice(3, 9));
+  });
+});
+
+describe("request retries", () => {
+  const ok = { ok: true, status: 200, json: async () => ({ results: { bindings: [] } }) };
+  const bad = (status: number) => ({ ok: false, status, json: async () => ({}) });
+  const noSleep = { sleep: async () => {}, baseMs: 0 };
+
+  it("retries 429 and 5xx, then succeeds", async () => {
+    const responses = [bad(429), bad(503), ok];
+    let calls = 0;
+    const client = createWikidataClient(async () => responses[calls++]!, noSleep);
+    expect(await client.sparql("SELECT * WHERE {}")).toEqual([]);
+    expect(calls).toBe(3);
+  });
+  it("retries a network error", async () => {
+    let calls = 0;
+    const client = createWikidataClient(async () => {
+      if (calls++ === 0) throw new TypeError("Failed to fetch");
+      return ok;
+    }, noSleep);
+    await client.sparql("SELECT * WHERE {}");
+    expect(calls).toBe(2);
+  });
+  it("gives up after the retry budget and reports the status", async () => {
+    let calls = 0;
+    const client = createWikidataClient(async () => (calls++, bad(429)), { ...noSleep, retries: 2 });
+    await expect(client.sparql("SELECT * WHERE {}")).rejects.toThrow("HTTP 429");
+    expect(calls).toBe(3);
+  });
+  it("does not retry a 4xx like 400", async () => {
+    let calls = 0;
+    const client = createWikidataClient(async () => (calls++, bad(400)), noSleep);
+    await expect(client.sparql("x")).rejects.toThrow("HTTP 400");
+    expect(calls).toBe(1);
   });
 });

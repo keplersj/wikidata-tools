@@ -22,19 +22,48 @@ export const ENTITY_BATCH = 50;
 /** Only Wikimedia hosts get Api-User-Agent: other hosts (npm) reject the CORS preflight it triggers. */
 const wikimediaHeaders = { "Api-User-Agent": USER_AGENT };
 
+const RETRYABLE = new Set([429, 500, 502, 503, 504]);
+const defaultSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/**
+ * `fetchFn`, retried with exponential backoff on 429/5xx and on network errors, so one
+ * hiccup in a long run (a full batch makes thousands of requests) does not abort it.
+ * Returns the last response if retries run out; rethrows the last network error.
+ */
+export async function fetchWithRetry(
+  fetchFn: FetchLike,
+  url: string,
+  init?: { headers?: Record<string, string> },
+  opts: { retries?: number; baseMs?: number; sleep?: (ms: number) => Promise<void> } = {},
+): ReturnType<FetchLike> {
+  const { retries = 4, baseMs = 1000, sleep = defaultSleep } = opts;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const res = await fetchFn(url, init);
+      if (!RETRYABLE.has(res.status) || attempt >= retries) return res;
+    } catch (err) {
+      if (attempt >= retries) throw err;
+    }
+    await sleep(baseMs * 2 ** attempt);
+  }
+}
+
 export function chunk<T>(list: readonly T[], size: number): T[][] {
   const out: T[][] = [];
   for (let i = 0; i < list.length; i += size) out.push(list.slice(i, i + size));
   return out;
 }
 
-export function createWikidataClient(fetchFn: FetchLike): WikidataClient {
+export function createWikidataClient(fetchFn: FetchLike, retry: Parameters<typeof fetchWithRetry>[3] = {}): WikidataClient {
   return {
     async sparql(query) {
       const url = `${SPARQL_ENDPOINT}?${new URLSearchParams({ query, format: "json" }).toString()}`;
-      const res = await fetchFn(url, {
-        headers: { Accept: "application/sparql-results+json", ...wikimediaHeaders },
-      });
+      const res = await fetchWithRetry(
+        fetchFn,
+        url,
+        { headers: { Accept: "application/sparql-results+json", ...wikimediaHeaders } },
+        retry,
+      );
       if (!res.ok) throw new Error(`SPARQL request failed: HTTP ${res.status}`);
       const body = (await res.json()) as { results: { bindings: SparqlBinding[] } };
       return body.results.bindings;
@@ -50,7 +79,7 @@ export function createWikidataClient(fetchFn: FetchLike): WikidataClient {
           ids: batch.join("|"),
           origin: "*",
         });
-        const res = await fetchFn(`${API_ENDPOINT}?${params.toString()}`, { headers: wikimediaHeaders });
+        const res = await fetchWithRetry(fetchFn, `${API_ENDPOINT}?${params.toString()}`, { headers: wikimediaHeaders }, retry);
         if (!res.ok) throw new Error(`wbgetentities failed: HTTP ${res.status}`);
         const body = (await res.json()) as { entities?: Record<string, Record<string, unknown>> };
         for (const id of batch) {
