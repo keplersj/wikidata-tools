@@ -82,6 +82,14 @@ describe("fetchArticles (MediaWiki api.php)", () => {
     expect(real.query.allpages.every((a) => typeof a.title === "string")).toBe(true);
   });
 
+  it("reports the running article count after each page", async () => {
+    const counts: number[] = [];
+    await fetchArticles(fandomFetch, "examplewiki", { onPage: (n) => counts.push(n) });
+    expect(counts).toHaveLength(2);
+    expect(counts[0]).toBeLessThan(counts[1] as number);
+    expect(counts[1]).toBe(5);
+  });
+
   it("follows `continue` and asks for non-redirect main-namespace pages with origin=*", async () => {
     asked.length = 0;
     const list = await fetchArticles(fandomFetch, "examplewiki");

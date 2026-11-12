@@ -12,6 +12,7 @@ import {
   packumentToSource,
   runNpmTool,
   type Progress,
+  type WikidataClient,
 } from "../src/index.js";
 import { replayFetch } from "./replay.js";
 
@@ -114,7 +115,8 @@ describe("npm tool progress", () => {
     expect(fetching.map((e) => e.done)).toEqual([0, 1, 2, 3]);
     expect(fetching.every((e) => e.total === 3)).toBe(true);
     const stages = events.map((e) => e.stage);
-    expect(stages.at(-1)).toBe("Comparing and building the batch");
+    expect(stages.at(-1)).toBe("Comparing with Wikidata and building the batch");
+    expect(events.filter((e) => e.stage === "Mapping source entries").at(-1)).toMatchObject({ done: 3, total: 3 });
     expect(stages).toContain("Looking up existing items on Wikidata");
     expect(stages).toContain("Looking up referenced items on Wikidata");
     for (const e of events.filter((x) => x.total !== undefined)) expect(e.done).toBeLessThanOrEqual(e.total as number);
@@ -132,5 +134,40 @@ describe("npm tool resilience", () => {
     );
     expect(r.notes).toEqual([expect.stringMatching(/^ghost-pkg: could not be fetched from npm \(Failed to fetch\), skipped$/)]);
     expect(r.text).toBe((await run()).text);
+  });
+});
+
+describe("listing progress", () => {
+  const names = Array.from({ length: 5 }, (_, i) => `pkg${i}`);
+  const fakeClient = (count: string | null): WikidataClient => ({
+    sparql: async (q) => {
+      if (q.includes("COUNT(DISTINCT")) {
+        if (count === null) throw new Error("timeout");
+        return [{ n: { type: "literal", value: count } }];
+      }
+      const limit = Number(/LIMIT (\d+)/.exec(q)?.[1]);
+      const offset = Number(/OFFSET (\d+)/.exec(q)?.[1]);
+      return q.includes("ORDER BY") ? names.slice(offset, offset + limit).map((v) => ({ v: { type: "literal", value: v } })) : [];
+    },
+    getEntities: async () => [],
+  });
+  const notFound = async () => ({ ok: false, status: 404, json: async () => ({}) });
+  const listing = async (count: string | null) => {
+    const events: Progress[] = [];
+    await runNpmTool(
+      { client: fakeClient(count), fetchNpm: notFound },
+      { names: [], fromWikidata: { all: true, pageSize: 2 }, runDate: "2026-11-12", onProgress: (p) => events.push(p) },
+    );
+    return events.filter((e) => e.stage.startsWith("Listing npm packages"));
+  };
+
+  it("counts first, so listing is a real bar", async () => {
+    const events = await listing("5");
+    expect(events.filter((e) => e.total !== undefined).map((e) => `${e.done}/${e.total}`)).toEqual(["0/5", "2/5", "4/5", "5/5"]);
+  });
+  it("falls back to a running count when the count query fails", async () => {
+    const events = await listing(null);
+    expect(events.map((e) => e.stage)).toContain("Listing npm packages on Wikidata (5 so far)");
+    expect(events.every((e) => e.total === undefined)).toBe(true);
   });
 });

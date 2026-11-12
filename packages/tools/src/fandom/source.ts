@@ -38,7 +38,7 @@ const MAX_PAGES = 400;
 export async function fetchArticles(
   fetchFn: FetchLike,
   wiki: string,
-  opts: { category?: string; base?: FandomBase } = {},
+  opts: { category?: string; base?: FandomBase; onPage?: (articlesSoFar: number) => void } = {},
 ): Promise<FandomArticle[]> {
   if (!/^[a-z0-9-]+(\.[a-z0-9-]+)?$/i.test(wiki)) throw new Error(`Not a Fandom wiki name: ${wiki}`);
   const base = (opts.base ?? directFandomBase)(wiki);
@@ -55,6 +55,7 @@ export async function fetchArticles(
     const body = (await res.json()) as ApiResponse;
     if (body.error) throw new Error(`Fandom ${wiki}: ${body.error.code ?? "error"}: ${body.error.info ?? ""}`);
     for (const a of body.query?.allpages ?? body.query?.categorymembers ?? []) out.set(a.title, a);
+    opts.onPage?.(out.size);
     if (!body.continue) return [...out.values()];
     more = body.continue;
   }
