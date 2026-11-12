@@ -174,3 +174,23 @@ export async function allValuesWithPrefix(
   const query = `SELECT DISTINCT ?v WHERE { ?item p:${property}/ps:${property} ?v . FILTER(STRSTARTS(?v, ${sparqlString(prefix)})) }`;
   return (await client.sparql(query)).flatMap((b) => (b.v ? [b.v.value] : [])).sort(cmp);
 }
+
+/**
+ * The Query Service can lag behind Wikidata and still return items that were
+ * deleted or turned into redirects. Before a resolved QID is emitted as a
+ * value, check the item still exists; otherwise drop it (the value then stays
+ * unresolved and is reported). Returns the QIDs it dropped.
+ */
+export async function verifyLookup(
+  client: WikidataClient,
+  lookup: Lookup,
+): Promise<{ lookup: Lookup; dropped: string[] }> {
+  const qids = [...new Set([...lookup.values()].flat())].sort(cmpId);
+  const alive = await loadStates(client, qids);
+  const verified: Lookup = new Map();
+  for (const [id, list] of lookup) {
+    const kept = list.filter((q) => alive.has(q));
+    if (kept.length) verified.set(id, kept);
+  }
+  return { lookup: verified, dropped: qids.filter((q) => !alive.has(q)) };
+}

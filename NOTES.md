@@ -77,8 +77,16 @@ is the intended fix, not a regression.
   package and needs a Node to bootstrap); the devcontainer file is written but untested.
 - **CI has never run.** `.github/workflows/ci.yml` is written (lint, typecheck, test, build) and its steps were run
   locally, but there is no remote yet, so there is no green CI badge to point to.
-- **Not deployed.** `apps/web/wrangler.toml` (static assets only) has the custom-domain route for `wikidata.keplersj.com`; no deploy, no
-  DNS record. `npm run deploy -w @wdt/web` deliberately fails with a reminder.
+- **Deployed 2026-11-12** to https://wikidata.keplersj.com on the owner's go-ahead. Worker `wikidata-tools` on the
+  Personal account, custom domain attached (this created the AAAA record for `wikidata.keplersj.com`).
+- **Continuous deployment: Cloudflare Workers Builds**, connected by the owner to this repo's `main` branch. Settings
+  (changed by me from the defaults, via the API): build `npm run build`, deploy
+  `npx wrangler deploy --config apps/web/wrangler.toml`, root directory `/`. Every push to `main` builds and deploys.
+  The first deploy was a manual API-triggered build; before it, a hash-verified stopgap Worker with the built files
+  embedded had been uploaded because the assets-upload API rejected the MCP connection's credentials (HTTP 401).
+  That stopgap is gone: the live Worker is now the real static-assets version.
+- Workers Builds reused the existing "kepler-dotgay-site build token" for this Worker; the preview-build deploy
+  command is still the dashboard default (`npx wrangler preview`) and has not been exercised.
 - QuickStatements was modelled (`packages/engine/src/qs-sim.ts`: exact property+value merge, otherwise add), not run
   against the real tool. The model follows the documented behaviour; real-world quirks may differ.
 - **Query Service lag:** items are found with SPARQL (as the brief mandates). The Wikidata Query Service can lag
@@ -87,6 +95,10 @@ is the intended fix, not a regression.
   without a different lookup path.
 - **Items SPARQL finds but `wbgetentities` can't load** (deleted, or a redirect returned under its target id): the
   entry is skipped with a note, never turned into a CREATE (that would duplicate a key that exists).
+- **Stale resolutions (found in the first live batch, #67228):** the Query Service returned a QID for a dependency that
+  had since been deleted, and the emitted `P1547` made QuickStatements fail (HTTP 422, `patch-result-invalid-value`)
+  and block the batch. Resolved QIDs are now checked with `wbgetentities` before use; a deleted or redirected one is
+  dropped, the value stays unresolved, and a note says so (`verifyLookup`, regression test in `pipeline.test.ts`).
 - **Text limits:** labels and descriptions over 250 characters are not sent (an over-long label blocks the create, an
   over-long description is dropped), and both are listed as `too-long`. The 250 figure is from memory and I could not
   confirm it in the Wikidata help pages; change `WIKIDATA_TEXT_LIMIT` in `packages/engine/src/emit.ts` if wrong.

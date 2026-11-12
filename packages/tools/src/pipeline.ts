@@ -15,7 +15,7 @@ import {
   type SourceEntry,
 } from "@wdt/engine";
 import type { WikidataClient } from "./wikidata/client.js";
-import { readCurrent, readLookup } from "./wikidata/reader.js";
+import { readCurrent, readLookup, verifyLookup } from "./wikidata/reader.js";
 
 export type ToolRun = {
   tool: string;
@@ -47,12 +47,13 @@ export async function runPipeline(args: {
 }): Promise<ToolRun> {
   const { client, mapping, runDate } = args;
   const mapped = args.entries.map((e) => applyMapping(mapping, e, { runDate }));
-  const lookup = await readLookup(client, collectUnresolved(mapped));
+  const { lookup, dropped } = await verifyLookup(client, await readLookup(client, collectUnresolved(mapped)));
   const wanted = resolveEntries(mapped, lookup);
   const { current, unloadable } = await readCurrent(client, wanted.map((e) => e.key));
   // A key Wikidata knows but whose item can't be loaded must not become a CREATE (that would duplicate it).
   const skip = new Set(unloadable);
   const notes = [...(args.notes ?? [])];
+  for (const qid of dropped) notes.push(`${qid}: matched an identifier but the item no longer exists (deleted or redirected), not used`);
   for (const id of unloadable) notes.push(`${id}: found by query but the item could not be loaded (deleted or redirected?), skipped`);
   const result = plan(wanted.filter((e) => !skip.has(keyId(e.key))), current, { unmappedFields: findUnmappedFields(mapping, args.entries) });
   const snapshotArgs = { date: runDate, tool: args.tool, mappingVersion: mapping.version, plan: result };

@@ -6,6 +6,7 @@ import {
   parseSnak,
   readCurrent,
   readLookup,
+  verifyLookup,
   type FetchLike,
   type SparqlBinding,
   type WikidataClient,
@@ -136,4 +137,23 @@ describe("client", () => {
     expect(calls[0]).toContain("format=json");
   });
   it("chunk", () => expect(chunk([1, 2, 3], 2)).toEqual([[1, 2], [3]]));
+});
+
+describe("verifyLookup", () => {
+  it("drops QIDs whose item no longer exists (stale query service), keeps live ones", async () => {
+    const client = fakeClient({
+      sparql: () => [],
+      entities: { Q1: { id: "Q1", claims: {} } }, // Q2 was deleted: wbgetentities has no entity for it
+    });
+    const lookup = new Map([
+      ["P8262\0live", ["Q1"]],
+      ["P8262\0gone", ["Q2"]],
+      ["P8262\0both", ["Q1", "Q2"]],
+    ]);
+    const { lookup: out, dropped } = await verifyLookup(client, lookup);
+    expect(out.get("P8262\0live")).toEqual(["Q1"]);
+    expect(out.get("P8262\0gone")).toBeUndefined();
+    expect(out.get("P8262\0both")).toEqual(["Q1"]);
+    expect(dropped).toEqual(["Q2"]);
+  });
 });
