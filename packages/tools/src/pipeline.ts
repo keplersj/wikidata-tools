@@ -49,12 +49,21 @@ export async function runPipeline(args: {
 }): Promise<ToolRun> {
   const { client, mapping, runDate } = args;
   const { onProgress } = args;
-  onProgress?.({ stage: "Resolving references through Wikidata identifiers" });
-  const mapped = args.entries.map((e) => applyMapping(mapping, e, { runDate }));
+  const mapped: ReturnType<typeof applyMapping>[] = [];
+  const mapStage = "Mapping source entries";
+  onProgress?.({ stage: mapStage, done: 0, total: args.entries.length });
+  for (const [i, e] of args.entries.entries()) {
+    mapped.push(applyMapping(mapping, e, { runDate }));
+    if ((i + 1) % 200 === 0 || i + 1 === args.entries.length) {
+      onProgress?.({ stage: mapStage, done: i + 1, total: args.entries.length });
+      await yieldToUi();
+    }
+  }
   const { lookup, dropped } = await verifyLookup(client, await readLookup(client, collectUnresolved(mapped), onProgress), onProgress);
   const wanted = resolveEntries(mapped, lookup);
   const { current, unloadable } = await readCurrent(client, wanted.map((e) => e.key), onProgress);
-  onProgress?.({ stage: "Comparing and building the batch" });
+  onProgress?.({ stage: "Comparing with Wikidata and building the batch" });
+  await yieldToUi(); // the comparison is one synchronous step; let the label paint first
   // A key Wikidata knows but whose item can't be loaded must not become a CREATE (that would duplicate it).
   const skip = new Set(unloadable);
   const notes = [...(args.notes ?? [])];
@@ -74,6 +83,9 @@ export async function runPipeline(args: {
     notes,
   };
 }
+
+/** Lets the browser repaint (and run timers) between chunks of synchronous work. */
+export const yieldToUi = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
 
 /** Runs `task` over `items` with at most `limit` in flight; results keep input order. */
 export async function pool<T, R>(items: readonly T[], limit: number, task: (item: T) => Promise<R>): Promise<R[]> {

@@ -74,7 +74,13 @@ type Deps = { client: WikidataClient; fetchFandom: FetchLike; base?: FandomBase;
 
 /** Check: articles with an item vs. articles total, for a whole wiki. */
 export async function runFandomCheck(deps: Deps, wiki: string): Promise<FandomCheck> {
-  const articles = await fetchArticles(deps.fetchFandom, wiki, deps.base ? { base: deps.base } : {});
+  const stage = `Listing articles on ${wiki}`;
+  deps.onProgress?.({ stage });
+  const articles = await fetchArticles(deps.fetchFandom, wiki, {
+    ...(deps.base ? { base: deps.base } : {}),
+    onPage: (n) => deps.onProgress?.({ stage: `${stage} (${n} so far)` }),
+  });
+  deps.onProgress?.({ stage: "Reading Fandom article IDs (P6262) from Wikidata" });
   const values = await allValuesWithPrefix(deps.client, "P6262", `${wiki}:`);
   return checkCoverage(wiki, articles, values);
 }
@@ -90,9 +96,22 @@ export async function runFandomCategoryMap(
   runDate: string,
 ): Promise<ToolRun> {
   const base = deps.base ?? directFandomBase;
+  const seen = new Map<string, number>();
+  const report = () => {
+    const n = [...seen.values()].reduce((a, b) => a + b, 0);
+    deps.onProgress?.({ stage: `Listing category articles on ${config.wiki} (${n} so far, ${seen.size} of ${config.categories.length} categories started)` });
+  };
+  deps.onProgress?.({ stage: `Listing category articles on ${config.wiki}` });
   const perCategory = await pool(config.categories, 3, async (cat) => ({
     cat,
-    articles: await fetchArticles(deps.fetchFandom, config.wiki, { category: cat.name, base }),
+    articles: await fetchArticles(deps.fetchFandom, config.wiki, {
+      category: cat.name,
+      base,
+      onPage: (n) => {
+        seen.set(cat.name, n);
+        report();
+      },
+    }),
   }));
 
   const bySlug = new Map<string, { title: string; instanceOf: Set<string> }>();

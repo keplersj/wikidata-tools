@@ -2,7 +2,7 @@ import { cmp, normalizeString, type SourceEntry } from "@wdt/engine";
 import type { OnProgress } from "../progress.js";
 import { pool, runPipeline, type ToolRun } from "../pipeline.js";
 import type { FetchLike, WikidataClient } from "../wikidata/client.js";
-import { listAllValues, listValues } from "../wikidata/reader.js";
+import { countValues, listAllValues, listValues } from "../wikidata/reader.js";
 import { npmMapping } from "./mapping.js";
 import { DEFAULT_VERSION_FILTER, fetchPackument, packumentToSource, type VersionFilter } from "./source.js";
 
@@ -31,14 +31,22 @@ export async function runNpmTool(
   const { onProgress } = input;
   if (input.fromWikidata) {
     const from = input.fromWikidata;
-    onProgress?.({ stage: "Listing npm packages on Wikidata" });
-    const values =
-      "all" in from
-        ? await listAllValues(deps.client, "P8262", {
-            ...from,
-            onPage: (n) => onProgress?.({ stage: `Listing npm packages on Wikidata (${n} so far)` }),
-          })
-        : await listValues(deps.client, "P8262", from);
+    const stage = "Listing npm packages on Wikidata";
+    onProgress?.({ stage });
+    let values: string[];
+    if ("all" in from) {
+      // A count up front turns the listing into a real bar; if it fails, fall back to a running count.
+      const counted = await countValues(deps.client, "P8262").catch(() => undefined);
+      const total =
+        counted === undefined ? undefined : Math.min(Math.max(0, counted - Math.trunc(from.offset ?? 0)), from.max ?? Infinity);
+      if (total !== undefined) onProgress?.({ stage, done: 0, total });
+      values = await listAllValues(deps.client, "P8262", {
+        ...from,
+        onPage: (done) => onProgress?.(total === undefined ? { stage: `${stage} (${done} so far)` } : { stage, done: Math.min(done, total), total }),
+      });
+    } else {
+      values = await listValues(deps.client, "P8262", from);
+    }
     for (const v of values) names.add(v);
   }
   const sorted = [...names].sort(cmp);

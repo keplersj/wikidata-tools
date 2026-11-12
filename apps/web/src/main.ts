@@ -68,9 +68,9 @@ const tools: Tool[] = [
       <label>Fandom wiki <small>the subdomain, e.g. starwars</small><input name="wiki" required placeholder="starwars" /></label>
       <p class="hint">Counts the wiki's articles that already have a Fandom article ID (P6262) item. Produces no batch.</p>
       ${dateField}`,
-    async run(f, out) {
+    async run(f, out, onProgress) {
       const wiki = String(f.get("wiki")).trim();
-      showCheck(out, await runFandomCheck({ client, fetchFandom: fetchFn }, wiki), String(f.get("runDate")));
+      showCheck(out, await runFandomCheck({ client, fetchFandom: fetchFn, onProgress }, wiki), String(f.get("runDate")));
     },
   },
   {

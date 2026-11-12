@@ -193,6 +193,16 @@ export async function listValues(
   return (await client.sparql(query)).flatMap((b) => (b.v ? [b.v.value] : []));
 }
 
+/** How many distinct values of an identifier property exist (optionally with a prefix). One query. */
+export async function countValues(client: WikidataClient, property: string, prefix?: string): Promise<number> {
+  assertProperty(property);
+  const filter = prefix ? `FILTER(STRSTARTS(?v, ${sparqlString(prefix)}))` : "";
+  const rows = await client.sparql(`SELECT (COUNT(DISTINCT ?v) AS ?n) WHERE { ?item p:${property}/ps:${property} ?v . ${filter} }`);
+  const n = Number(rows[0]?.n?.value);
+  if (!Number.isFinite(n)) throw new Error(`Could not count values of ${property}`);
+  return n;
+}
+
 /** Default page size for {@link listAllValues}. */
 export const DEFAULT_PAGE_SIZE = 1000;
 
