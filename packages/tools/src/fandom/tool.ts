@@ -1,4 +1,5 @@
 import { cmp, type Mapping, type Snapshot, type SourceEntry } from "@wdt/engine";
+import type { OnProgress } from "../progress.js";
 import { pool, runPipeline, type ToolRun } from "../pipeline.js";
 import type { FetchLike, WikidataClient } from "../wikidata/client.js";
 import { allValuesWithPrefix } from "../wikidata/reader.js";
@@ -69,7 +70,7 @@ export function checkSnapshot(check: FandomCheck, date: string): Snapshot {
   };
 }
 
-type Deps = { client: WikidataClient; fetchFandom: FetchLike; base?: FandomBase };
+type Deps = { client: WikidataClient; fetchFandom: FetchLike; base?: FandomBase; onProgress?: OnProgress };
 
 /** Check: articles with an item vs. articles total, for a whole wiki. */
 export async function runFandomCheck(deps: Deps, wiki: string): Promise<FandomCheck> {
@@ -122,6 +123,7 @@ export async function runFandomCategoryMap(
     mapping: fandomMapping,
     entries,
     runDate,
+    ...(deps.onProgress ? { onProgress: deps.onProgress } : {}),
     inputs: { wiki: config.wiki, categories: config.categories },
   });
 }

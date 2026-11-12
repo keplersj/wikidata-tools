@@ -11,6 +11,7 @@ import {
   isRelease,
   packumentToSource,
   runNpmTool,
+  type Progress,
 } from "../src/index.js";
 import { replayFetch } from "./replay.js";
 
@@ -97,5 +98,23 @@ describe("packumentToSource", () => {
     expect(e.fields.dependencies).toEqual(["alpha", "zeta"]);
     expect(e.fields.versions).toEqual([{ version: "1.0.0", time: "2020-01-01T00:00:00.000Z" }]);
     expect(e.fields.keywords).toEqual(["k"]);
+  });
+});
+
+describe("npm tool progress", () => {
+  it("reports counted fetching and the later stages, without changing the batch", async () => {
+    const events: Progress[] = [];
+    const fetchFn = replayFetch(dir, []);
+    const r = await runNpmTool(
+      { client: createWikidataClient(fetchFn), fetchNpm: fetchFn },
+      { ...input, onProgress: (p) => events.push(p) },
+    );
+    expect(r.text).toBe((await run()).text);
+    const fetching = events.filter((e) => e.stage.startsWith("Fetching"));
+    expect(fetching.map((e) => e.done)).toEqual([0, 1, 2, 3]);
+    expect(fetching.every((e) => e.total === 3)).toBe(true);
+    const stages = events.map((e) => e.stage);
+    expect(stages.at(-1)).toBe("Comparing and building the batch");
+    expect(stages).toContain("Looking up existing items on Wikidata");
   });
 });

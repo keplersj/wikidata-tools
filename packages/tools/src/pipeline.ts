@@ -14,6 +14,7 @@ import {
   type Snapshot,
   type SourceEntry,
 } from "@wdt/engine";
+import type { OnProgress } from "./progress.js";
 import type { WikidataClient } from "./wikidata/client.js";
 import { readCurrent, readLookup, verifyLookup } from "./wikidata/reader.js";
 
@@ -44,12 +45,16 @@ export async function runPipeline(args: {
   runDate: string;
   inputs?: Record<string, unknown>;
   notes?: string[];
+  onProgress?: OnProgress;
 }): Promise<ToolRun> {
   const { client, mapping, runDate } = args;
+  const { onProgress } = args;
+  onProgress?.({ stage: "Resolving references through Wikidata identifiers" });
   const mapped = args.entries.map((e) => applyMapping(mapping, e, { runDate }));
   const { lookup, dropped } = await verifyLookup(client, await readLookup(client, collectUnresolved(mapped)));
   const wanted = resolveEntries(mapped, lookup);
-  const { current, unloadable } = await readCurrent(client, wanted.map((e) => e.key));
+  const { current, unloadable } = await readCurrent(client, wanted.map((e) => e.key), onProgress);
+  onProgress?.({ stage: "Comparing and building the batch" });
   // A key Wikidata knows but whose item can't be loaded must not become a CREATE (that would duplicate it).
   const skip = new Set(unloadable);
   const notes = [...(args.notes ?? [])];

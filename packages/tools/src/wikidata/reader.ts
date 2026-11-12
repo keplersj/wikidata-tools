@@ -13,6 +13,7 @@ import {
   type Resolution,
   type Value,
 } from "@wdt/engine";
+import type { OnProgress } from "../progress.js";
 import { chunk, type WikidataClient } from "./client.js";
 
 export const SPARQL_BATCH = 50;
@@ -32,7 +33,12 @@ const qidFromUri = (uri: string) => uri.slice(uri.lastIndexOf("/") + 1);
 type Row = { v: string; qid: string };
 
 /** All items carrying `property` = one of `values`, any rank. One SPARQL query per batch. */
-async function itemsByValues(client: WikidataClient, property: string, values: string[]): Promise<Row[]> {
+async function itemsByValues(
+  client: WikidataClient,
+  property: string,
+  values: string[],
+  onBatch?: (n: number) => void,
+): Promise<Row[]> {
   assertProperty(property);
   const rows: Row[] = [];
   for (const batch of chunk([...new Set(values)].sort(cmp), SPARQL_BATCH)) {
@@ -42,6 +48,7 @@ async function itemsByValues(client: WikidataClient, property: string, values: s
       const v = b.v?.value;
       if (item && v !== undefined) rows.push({ v, qid: qidFromUri(item) });
     }
+    onBatch?.(batch.length);
   }
   return rows;
 }
@@ -108,7 +115,7 @@ export type CurrentRead = {
   unloadable: string[];
 };
 
-export async function readCurrent(client: WikidataClient, keys: Key[]): Promise<CurrentRead> {
+export async function readCurrent(client: WikidataClient, keys: Key[], onProgress?: OnProgress): Promise<CurrentRead> {
   const byProperty = new Map<string, string[]>();
   for (const k of keys) {
     const list = byProperty.get(k.property) ?? [];
@@ -116,11 +123,19 @@ export async function readCurrent(client: WikidataClient, keys: Key[]): Promise<
     byProperty.set(k.property, list);
   }
   const hits: { id: string; qid: string }[] = [];
+  const total = [...byProperty.values()].reduce((n, v) => n + new Set(v).size, 0);
+  let done = 0;
+  onProgress?.({ stage: "Looking up existing items on Wikidata", done, total });
   for (const [property, values] of [...byProperty].sort(([a], [b]) => cmpId(a, b))) {
-    for (const row of await itemsByValues(client, property, values)) {
+    const rows = await itemsByValues(client, property, values, (n) => {
+      done += n;
+      onProgress?.({ stage: "Looking up existing items on Wikidata", done, total });
+    });
+    for (const row of rows) {
       hits.push({ id: keyId({ property, value: row.v }), qid: row.qid });
     }
   }
+  onProgress?.({ stage: "Loading item data from Wikidata" });
   const states = await loadStates(client, hits.map((h) => h.qid));
   const out: CurrentState = {};
   const unloadable = new Set<string>();
@@ -174,7 +189,7 @@ export const DEFAULT_PAGE_SIZE = 1000;
 export async function listAllValues(
   client: WikidataClient,
   property: string,
-  opts: { pageSize?: number; offset?: number; max?: number; prefix?: string } = {},
+  opts: { pageSize?: number; offset?: number; max?: number; prefix?: string; onPage?: (total: number) => void } = {},
 ): Promise<string[]> {
   const pageSize = Math.max(1, Math.trunc(opts.pageSize ?? DEFAULT_PAGE_SIZE));
   const max = opts.max === undefined ? Infinity : Math.max(0, Math.trunc(opts.max));
@@ -188,6 +203,7 @@ export async function listAllValues(
       ...(opts.prefix === undefined ? {} : { prefix: opts.prefix }),
     });
     out.push(...page);
+    opts.onPage?.(out.length);
     if (page.length < limit) break;
     offset += page.length;
   }
